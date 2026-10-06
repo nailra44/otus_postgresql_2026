@@ -126,17 +126,67 @@ show hba_file;
     /etc/postgresql/17/pg_17/pg_hba.conf # кто с каких ip, к какой бд может подключаться
     (1 row)
 
- show config_file;
+show config_file; # настройки кластера
     # результат 
                    config_file
     ------------------------------------------
     /etc/postgresql/17/pg_17/postgresql.conf
     (1 row)
+show data_directory # файлы базы данных
+
+select current_setting('data_directory'); # вызов встроенной функции PostgreSQL, которая возвращает значение текущего параметра конфигурации data_directory
+    # результат 
+           current_setting
+    ------------------------------
+    /var/lib/postgresql/17/pg_17
+    (1 row)
 
 
 
+# редактирование файлов конфигурации
+sudo vi /etc/postgresql/17/pg_17/pg_hba.conf
 
+# Database administrative login by Unix domain socket
+local   all             postgres                                peer  # строка говорит о том что локально по соккету может подключиться кто угодно.
+host    replication     all             127.0.0.1/32            scram-sha-256 # подключение по сети, для яндекс облака тоже надо использовать
+# в варианте ниже можно подключиться к кластеру с любого ip
+host    replication     all             0.0.0.0/0            scram-sha-256 # 
 
+sudo vi /etc/postgresql/17/pg_17/postgresql.conf
+    # срока listen_addresses = 'localhost'          # what IP address(es) to listen on;
+    listen_addresses = '*' # принимать соединения со всех адресов
+ 
+# подключение к postgresql с указанием хоста
+sudo -u postgres psql -p 5434 -h localhost
+    # проверяем подключение
+        postgres=# \conninfo
+        You are connected to database "postgres" as user "postgres" on host "localhost" (address "127.0.0.1") at port "5434".
+
+```
+# Работаем с кластером
+```sh
+# так как менялись настройки, выполняем рестарт кластера
+sudo pg_ctlcluster 17 pg_17 restart
+# просмотр статуса
+sudo pg_ctlcluster 17 pg_17 reboot
+# перечитать параметры без остановки кластера
+sudo pg_ctlcluster 17 pg_17 status
+# Примечание. На одном экземпляре - одна производственная база данных (общий WAL, настройки, ресурсы памяти)
+# Создание нового экземпляра
+sudo pg_createcluster 18 instance02 --port 5435
+sudo pg_ctlcluster 18 instance02 start
+# Удаление экземпляра
+sudo pg_ctlcluster 18 instance02 start
+sudo pg_dropcluster 18 instance02 stop
+#
+ps auxf | grep postgres
+```
+# Подключение к postgres DBeaver
+```sh
+# создание бд
+create database test;
+\с # подключение к бд
+create table test1 (trest int, name text)
 
 
 
