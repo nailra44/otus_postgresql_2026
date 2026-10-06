@@ -104,6 +104,36 @@ sudo pg_ctlcluster start 17 pg_17
     # Результат
     Ver Cluster Port Status Owner    Data directory               Log file
     17  pg_17   5434 online postgres /var/lib/postgresql/17/pg_17 /var/log/postgresql/postgresql-17-pg_17.log
+```
+```sh
+# подключение к postgresql
+sudo -u postgres psql -p 5434
+    # результат
+    psql (17.11 (Ubuntu 17.11-1.pgdg26.04+2))
+    Type "help" for help. 
+    postgres=#
+# просмотр параметров подключения    
+postgres=# \conninfo
+    # результат
+    You are connected to database "postgres" as user "postgres" via socket in "/var/run/postgresql" at port "5434".
+# задать пароль пользователю postgres
+\password
+# изменения в файлах конфигурации
+show hba_file;
+    # результат  
+                   hba_file
+    --------------------------------------
+    /etc/postgresql/17/pg_17/pg_hba.conf # кто с каких ip, к какой бд может подключаться
+    (1 row)
+
+ show config_file;
+    # результат 
+                   config_file
+    ------------------------------------------
+    /etc/postgresql/17/pg_17/postgresql.conf
+    (1 row)
+
+
 
 
 
