@@ -5,17 +5,27 @@
 - выполнено
 
 TODO: Установите Docker Engine;
-
 - выполнено
 
 TODO: Создайте каталог для данных PostgreSQL на хосте: /var/lib/postgresql;
+- выполнено
+
 TODO: Разверните контейнер с PostgreSQL, смонтировав каталог хоста в каталог данных контейнера и пробросив порт 5432 для внешнего подключения;
+- выполнено
+
 TODO: Разверните контейнер с клиентом PostgreSQL (psql);
+- выполнено
+
 TODO: Подключитесь из контейнера с клиентом к контейнеру с сервером; создайте таблицу orders_test и добавьте минимум 2 строки;
+- выполнено
 TODO: Подключитесь к PostgreSQL с ноутбука/рабочего компьютера извне хоста (по адресу хоста и порту 5432); выполните проверочный select из таблицы orders_test;
+- выполнено
 TODO: Остановите и удалите контейнер с сервером PostgreSQL;
+- выполнено
 TODO: Создайте контейнер с сервером заново, используя тот же смонтированный каталог данных;
+- выполнено
 TODO: Подключитесь повторно из контейнера с клиентом и извне; проверьте, что строки в orders_test сохранились;
+- выполнено
 
 Установка PostgreSQL
 ```sh
@@ -359,66 +369,67 @@ create database test2;
 create table test (id int);
 insert into test values (1);
 
-postgres=# create database test2;
-CREATE DATABASE
-postgres=# \c test2;
-psql (17.11 (Ubuntu 17.11-1.pgdg26.04+2), server 18.6 (Debian 18.6-1.pgdg13+2))
-WARNING: psql major version 17, server major version 18.
-         Some psql features might not work.
-You are now connected to database "test2" as user "postgres".
-test2=# create table test (id int);
-insert into test values (1);
+CREATE TABLE order_test (id int, name text);
+INSERT INTO order_test (id, name) VALUES (1, 'Вася');
+INSERT INTO order_test (id, name) VALUES (2, 'Гриша');
+
+test2=# CREATE TABLE order_test (id int, name text);
+INSERT INTO order_test (id, name) VALUES (1, 'Вася');
+INSERT INTO order_test (id, name) VALUES (2, 'Гриша');
 CREATE TABLE
 INSERT 0 1
-test2=# select * from test
-test2-# ;
- id
-----
-  1
-(1 row)
+INSERT 0 1
+test2=# select * from order_test;
+ id | name
+----+-------
+  1 | Вася
+  2 | Гриша
+(2 rows)
 
-```
-```sh 
+
+```sh
 # проверить подключение к postgres из Beaver на потом
 # остановка контейнера
+
 sudo docker stop postgres18
    # результат
-   #gorskiy-nn@gorskiy-nn-VirtualBox:/var/lib/postgres$ sudo docker stop postgres18
-   #postgres18
-   sudo docker ps
-      CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAME
+ a4c275e8c1c5   postgres:18   "docker-entrypoint.s…"   13 minutes ago   Up 13 minutes   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp   postgres18
+gorskiy-nn@gorskiy-nn-VirtualBox:/var/lib/postgres$ sudo docker stop postgres18
+postgres18
+gorskiy-nn@gorskiy-nn-VirtualBox:/var/lib/postgres$ sudo docker ps
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+
 #  создание контейнера повторно
    sudo docker run --rm -d --name postgres18 -e POSTGRES_PASSWORD=postgres -p 5432:5432 -v /var/lib/postgresql/docker-pg18:/var/lib/postgresql  postgres:18
    # результат
-      gorskiy-nn@gorskiy-nn-VirtualBox:/var/lib/postgres$ sudo docker run --rm -d --name postgres18 -e POSTGRES_PASSWORD=postgres -p 5432:5432 -v /var/lib/postgresql/docker-pg18:/var/lib/postgresql  postgres:18
-      a4c275e8c1c5c505a01bc75191533e993466322ed799392f8d91e4c8b8d149f2
-    gorskiy-nn@gorskiy-nn-VirtualBox:/var/lib/postgres$ sudo docker ps
-    CONTAINER ID   IMAGE         COMMAND                  CREATED          STATUS          PORTS                                         NAMES
-    a4c275e8c1c5   postgres:18   "docker-entrypoint.s…"   19 seconds ago   Up 18 seconds   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp   postgres18
+     gorskiy-nn@gorskiy-nn-VirtualBox:/var/lib/postgres$ sudo docker run --rm -d --name postgres18 -e POSTGRES_PASSWORD=postgres -p 5432:5432 -v /var/lib/postgresql/docker-pg18:/var/lib/postgresql  postgres:18
+       6066f93a8feff7e48efd6376feaacf7318be7ce3b25f0cf3b606d03d1433b864
+       gorskiy-nn@gorskiy-nn-VirtualBox:/var/lib/postgres$ sudo docker ps
+       CONTAINER ID   IMAGE         COMMAND                  CREATED         STATUS         PORTS                                         NAMES
+        6066f93a8fef   postgres:18   "docker-entrypoint.s…"   3 seconds ago   Up 2 seconds   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp   postgres18
 
  # проверка базы с другого сервака
  gorskiy-nn@gorskiy-nn-VirtualBox:~$ psql -h 10.62.11.82 -p 5432 -U postgres -d postgres
-    #Password for user postgres:
-    #psql (17.11 (Ubuntu 17.11-1.pgdg26.04+2), server 18.6 (Debian 18.6-1.pgdg13+2))
-    #WARNING: psql major version 17, server major version 18.
-    #Some psql features might not work.
-    #Type "help" for help.
+Password for user postgres:
+psql (17.11 (Ubuntu 17.11-1.pgdg26.04+2), server 18.6 (Debian 18.6-1.pgdg13+2))
+WARNING: psql major version 17, server major version 18.
+         Some psql features might not work.
+Type "help" for help.
 
-postgres=# /c test2
-#postgres-# select * from test;
-#ERROR:  syntax error at or near "/"
-#LINE 1: /c test2
-        ^
 postgres=# \c test2
 psql (17.11 (Ubuntu 17.11-1.pgdg26.04+2), server 18.6 (Debian 18.6-1.pgdg13+2))
 WARNING: psql major version 17, server major version 18.
          Some psql features might not work.
 You are now connected to database "test2" as user "postgres".
-test2=# select * from test;
- id
-----
-  1
-(1 row)
+test2=# select * from order_test;
+ id | name
+----+-------
+  1 | Вася
+  2 | Гриша
+(2 rows)
+
+test2=#
+
 
 
 ! [](file_name.png)
