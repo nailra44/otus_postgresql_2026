@@ -430,7 +430,7 @@ test2=# select * from order_test;
 
 test2=#
 
-
+#PS. Подключение к DBeaver настроено, лишний порт был прописан.
 
 ! [](file_name.png)
 
