@@ -1,175 +1,248 @@
-PostgreSQL - работа с СУБД
-##Теория
+Домашнее задание
+Перенос данных PostgreSQL
+
+Цель:
+перенести каталог данных PostgreSQL на дополнительный диск и восстановить работоспособность кластера при нехватке места на системном диске;
+
+
+Описание/Пошаговая инструкция выполнения домашнего задания:
+
+Контекст
+Команда готовит стенд для нагрузочного тестирования нового релиза: ожидаются длительные прогоны и большой объём данных, чтобы проверить поведение системы при росте таблиц и интенсивной записи.
+ На системном диске ВМ места недостаточно и его нельзя быстро расширить без рисков для стенда. Поэтому под данные PostgreSQL выделяется отдельный диск, который можно масштабировать независимо и при необходимости переносить между инстансами. Задача - перенести каталог данных PostgreSQL на новый том, обеспечить автомонтирование после перезагрузки и вернуть кластер в рабочее состояние. Успех подтверждается тем, что кластер запускается с новым путём к данным, а тестовая таблица и строки остаются на месте.
+Описание / пошаговая инструкция выполнения ДЗ
+1) Создайте виртуальную машину с Ubuntu 22.04/24.04 LTS в ЯО/VirtualBox (или эквивалентный стенд с возможностью подключать диск);
+   - выполнено
+2) Установите PostgreSQL через apt;
+   - выполнено
+3) Проверьте, что кластер запущен (pg_lsclusters);
+   - выполнено
+4) Под пользователем postgres подключитесь в psql, создайте таблицу test и добавьте 1–2 строки;
+   - выполнено
+5) Остановите кластер PostgreSQL штатной командой (pg_ctlcluster ... stop);
+   - выполнено
+6) Создайте дополнительный диск 10 GB и подключите его к виртуальной машине;
+   - выполнено
+7) Разметьте диск, создайте файловую систему и примонтируйте, например, в /mnt/data;
+
+8) Настройте автомонтирование после перезагрузки (через fstab) и проверьте, что диск остаётся примонтированным;
+   - выполнено
+9) Назначьте владельцем каталога /mnt/data пользователя postgres;
+10) Перенесите каталог данных PostgreSQL с текущего пути на /mnt/data (с сохранением прав);
+11) Попробуйте запустить кластер; зафиксируйте результат и причину (если не стартовал);
+12) Найдите в конфигурации /etc/postgresql/<версия>/main параметр, который указывает на каталог данных, измените его на новый путь и объясните изменение;
+13) Запустите кластер повторно;
+14) Подключитесь через psql и проверьте, что таблица test и данные сохранились;
+15) Задание со звёздочкой: перенесите внешний диск на новую ВМ и запустите PostgreSQL на новой ВМ, используя данные на этом диске; опишите шаги и итоговый результат;
+
+Установка PostgreSQL через apt
 ```sh
-# клиент psql
-psql -h <сервер> -d <база> -p <порт> -U <пользователь>
-# собственные команды psql
-\conninfo # посмотреть к какому инстансу подключены
-# Connection options
--h хост
--p порт
--U пользователь
--w no-password
--W password
-# General options
--c command
--d dbname
--f filename
--l list
--v variable # задаются переменые окружения
-# Input and output options
--a echo
--b echo-errors
--e echo-queries #echo commands sent to server
--E echo-hidden
+sudo atp install postgresql-common
+    # проверка установки
+    gorskiy-nn@gorskiy-nn-VirtualBox:~$ dpkg -l postgresql-common
+    ┌── Desired=Unknown/Install/Remove/Purge/Hold
+    │┌─ Status=Not/Inst/Conf-files/Unpacked/halF-conf/Half-inst/trig-aWait/Trig-pend
+    ││┌ Err?=(none)/Reinst-required (Status,Err: uppercase=bad)
+    │││ Name              Version      Architecture Description
+    ├┼┼─═════════════════─════════════─════════════─═══════════════════════════════════
+    ii  postgresql-common 290ubuntu1   all          PostgreSQL database-cluster manager
+# подключение репозитория 
+sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+    # проверяем подключение репозитория 
+    ls -l /etc/apt/sources.list.d/ | grep -i pgdg
 
-# Практика
-\l #смотрим список баз
-\c otus #подключение к базе
-# вариант подключения
-sudo -u postgres psql -d otus
+# утилита просмотра кластеров
+pg_lsclusters
+    # результат выполнения
+    gorskiy-nn@gorskiy-nn-VirtualBox:~$ pg_lsclusters
+    Ver Cluster Port Status Owner    Data directory              Log file
+    17  main    5432 online postgres /var/lib/postgresql/17/main /var/log/postgresql/postgresql-17-main.log
+        # удаляем кластер main установленный по умолчанию
+        sudo pg_dropcluster --stop 17 main
+            # результат выполнения
+            gorskiy-nn@gorskiy-nn-VirtualBox:~$ pg_lsclusters
+            Ver Cluster Port Status Owner Data directory Log file
+# установка конкретной версии postgresql
+    # устанавливаем бинарники
+    sudo apt install postgresql-18
+       # ПРоверка установки пакета
+       dpkg -l postgresql-18
+           ┌── Des           ired=Unknown/Install/Remove/Purge/Hold
+           │┌─ Status=Not/Inst/Conf-files/Unpacked/halF-conf/Half-inst/trig-aWait/Trig-pend
+           ││┌ Err?=(none)/Reinst-required (Status,Err: uppercase=bad)
+           │││ Name           Version            Architecture Description
+           ├┼┼─══════════════─══════════════════─════════════─═════════════════════════════════════════════════════════
+           ii  postgresql-18  18.6-1.pgdg26.04+2 amd64        The World's Most Advanced Open Source Relational Database
+```
+Установка кластера
+```sh
+sudo pg_createcluster 18 pg_18 --port 5456
+    # результат выполнения
+    Creating new PostgreSQL cluster 18/pg_18 ...
+        # Просмотр кластера
+        pg_lsclusters
+            Ver Cluster Port Status Owner    Data directory               Log file
+            18  pg_18   5456 down   postgres /var/lib/postgresql/18/pg_18 /var/log/postgresql/postgresql-18-pg_18.log
 
-##Теория2
-# при запуске psql выполняются команды, записанные в 2-х файлах
-    # системном - /usr/local/pgsql/etc/psqlrc
-    # польтзовательском - .psqlrc из домашнего каталога пользователя. расположение пользовательского файла модно изменить, задав переменную окружения PSQLRC
-  # В эти файлы могут быть записаны команды настройки psql - например, можно изменить приглашение, включить вывод времени выполнения команд
-  
-# Практика2
-  # просмотр истории команд
-  cd /var/lib/postgresql
-  ls -la
-  cat /var/lib/postgresql/.psql_history
-
-###Теория3
-   # возможности подключения к PostgresSQL определяются настройками, сохраняемыми в конфигурационных файлах:
-       # pg_hba.conf - описывает настройки подключения (host-based authentication)
-         # pg_hba.conf
-              
-       # postgresql.conf - содержит основные настройки, в т.ч. порт PostgreSQL и адреса с которых разрешены подключения.
-          # postgresql.conf 
-               # включение listener в postgresql.conf
-               listen_addresses = '*' # IP адреса, на которых принимает постгрес подключения
-               # или
-               alter system set listen_addresses = '*';
-        # перезагрузить сервер 
-        # SHOW data_directory;  - посмотреть где находится сама база данных
-        # SELECT * FROM pg_settings \gx можно посмотреть через системное представление      
-
-
-# Практика3
-    #Подключится к psql
-    SHOW hba_file;
-    SHOW config_file;
-    SHOW data_directory;
-    show all # посмотреть все настройки
-    SELECT * FROM pg_settings \gx
-
-показать путь
-     Рекомендация - после развертывания ванильной версии каталог  /etc/postgresql/17/main/ перенести в другое место расположения. Для чего - если что-то произойдёт, что бы был доступ для копирования БД
+sudo pg_ctlcluster start 18 pg_18
+        # Просмотр кластера
+        pg_lsclusters
+            Ver Cluster Port Status Owner    Data directory               Log file
+            18  pg_18   5456 online postgres /var/lib/postgresql/18/pg_18 /var/log/postgresql/postgresql-18-pg_18.log
+```            
+подключение postgres
+```sh
+sudo -u postgres psql --port 5456    
+   #результат
+   psql (18.6 (Ubuntu 18.6-1.pgdg26.04+2))
+   Type "help" for help.
+   postgres=#
+       # задать пароль для postgres
+       \password
 
 ```
-Базы данных кластера
-
+Редактирование файлов конфигурации
 ```sh
-###Теория4
-Две базы системных шаблонов. Шаблоны - настроенные схемы. Если планируем создавать базу из шаблона, то лучше создать свой шаблон
-* template0 неизменяемый шаблон лучше не трогать
-* template1 изменяемый шаблон
-# Рекомендация
-* postgres БД для первого подключения
-# Практика4
-    # Создание базы данных используя template
-    CREATE DATABASE new_DB
-    WITH TEMPLATE template_bd
+    postgres=# SHOW hba_file;
+        #результат
+                       hba_file
+        --------------------------------------
+         /etc/postgresql/18/pg_18/pg_hba.conf
+        (1 row)
+
+        postgres=# SHOW config_file;
+                       config_file
+        ------------------------------------------
+         /etc/postgresql/18/pg_18/postgresql.conf
+        (1 row)
+    sudo nano /etc/postgresql/18/pg_18/pg_hba.conf
+        #результат
+        sudo cat /etc/postgresql/18/pg_18/pg_hba.conf | grep -A1  'IPv4 local connections'
+            # IPv4 local connections:
+            host    all             all             all                     scram-sha-256
+    sudo nano /etc/postgresql/18/pg_18/postgresql.conf
+        #результат
+        sudo cat /etc/postgresql/18/pg_18/postgresql.conf | grep liste
+        listen_addresses = '*'          # what IP address(es) to listen on;
+
+```
+Создание базы, таблиц
+```sh 
+        #создание базы
+       postgres=# 
+       CREATE DATABASE newtest;
+           #результат
+           CREATE DATABASE
+               \c newtest
+               #создание таблицы
+               CREATE TABLE first_name(id int, name text);
+                   #результат
+                   CREATE TABLE
+                       #заполнение данными таблицы
+                       INSERT INTO first_name (id, name) VALUES (1, 'Grisha');
+                       INSERT INTO first_name (id, name) VALUES (2, 'Vasya');
+                       INSERT INTO first_name (id, name) VALUES (3, 'Serega');
+                       INSERT INTO first_name (id, name) VALUES (4, 'Bred');
+                           #результат
+                           INSERT 0 1
+                           INSERT 0 1
+                           INSERT 0 1
+                           INSERT 0 1
+                                newtest=# select * from first_name;
+                                #результат        
+                                    id |  name
+                                    ----+--------
+                                      1 | Grisha
+                                      2 | Vasya
+                                      3 | Serega
+                                      4 | Bred
+                                    (4 rows)
+```
+Остановка кластера PostgreSQL штатной командой
+```sh
+pg_lsclusters
+    Ver Cluster Port Status Owner    Data directory               Log file
+    18  pg_18   5456 online postgres /var/lib/postgresql/18/pg_18 /var/log/postgresql/postgresql-18-pg_18.log
+sudo pg_ctlcluster 18 pg_18 stop
+pg_lsclusters
+    Ver Cluster Port Status Owner    Data directory               Log file
+    18  pg_18   5456 down   postgres /var/lib/postgresql/18/pg_18 /var/log/postgresql/postgresql-18-pg_18.log
+sudo pg_ctlcluster 18 pg_18 start
+ pg_lsclusters
+    Ver Cluster Port Status Owner    Data directory               Log file
+    18  pg_18   5456 online postgres /var/lib/postgresql/18/pg_18 /var/log/postgresql/postgresql-18-pg_18.log
+
 
 
 ```
-ВЗАИМОДЕЙСТВИЕ КЛИЕНТА И СЕРВЕРА
+Создание виртуального диска
+! [](otu_svd1.jpg)
+
+Разметка диска, создание файловой системы
 ```sh
-###Теория5
-           postmaster
-Клиент--------backend
-              local memory   
-                   shared memory    
-                       background writer #
-                       checkpointer #
-                       autovacuum # очистка
-                       WAL writer # запись WAL на диск
-                       log writer # возможность записи в лог
-                       archiver # архивация WAL журналов
-                   shared memory
-               Файлы БД
-процессы взаимодействуют с базой данных через shared memory 
-под каждый клиент выделяется локальная память, поэтому если много подключений, то надо дать ресурсы на расширение.
-```
-Серверные процессы и память
-```sh
+gorskiy-nn@gorskiy-nn-VirtualBox:~$ lsblk | grep sdb
+sdb      8:16   0  11.2G  0 disk
+# разметка
+sudo fdisk /dev/sdb
+    n	новый раздел
+    p	primary (основной)
+    1	номер раздела
+    Enter	начало по умолчанию
+    Enter	конец по умолчанию (весь диск)
+    w	записать и выйти
+ 
+        #результат
+            gorskiy-nn@gorskiy-nn-VirtualBox:~$ lsblk | grep sdb
+            sdb      8:16   0  11.2G  0 disk
+            └─sdb1   8:17   0  11.2G  0 part
 
-Процесс postmaster # запускается при старте сервиса и порождает все остальные
-    * postgres server process
-    * первый процесс postgres
-    * запускается при старте сервиса
-    * порождает все остальные процессы
-    * создает (выделяет) shared memory
-    * слушает TCP и/или unix socket
-backend processes
-    * создаются postmaster’ом
-    * обслуживают сессию
-    * время жизни = время сесии
-    * максимальное количество определяется параметром
-    * max_connections по умолчанию 100
-    * запускаются postmaster’ом при старте сервиса
-    * у каждого – своя роль
- Memory Architecture
-    1  Память для внутренних операций (work_mem)
-       принадлежит backend процессу
-       размер определяется параметром work_mem (4 MB)
-       используется при выполнении запросов для создания хэш-таблиц, сортировки и т.д.
-    2  Память для операций обслуживания (maintenance_work_mem)
-       принадлежит backend процессу
-       используется служебными операциями VACUUM, REINDEX и т.д.
-       размер определяется параметром maintenance_work_mem (64 MB)
-       выделяется только при необходимости (при использовании соответствующих команд
-    3  Память для временных таблиц (temp_buffers)
-       размер определяется параметром temp_buffers (8 MB)
-       используется для хранения временных таблиц
-# Пример
-На рабочем компе
-max_connections = 246
-shared_buffers = 128MB
-work_mem = 32MB
-maintenance_work_mem = 493MB
+# создание файловой системы
+sudo mkfs.ext4 /dev/sdb1
+        #результат            
+            lsblk -f | grep sdb
+            sdb
+            └─sdb1 ext4     1.0         dcb3f28b-6ddc-425c-b133-a473b7c0c8ee
+# монтирование
+sudo mkdir -p /mnt/data
+sudo mount /dev/sdb1 /mnt/data
+        #результат            
+            df -h /mnt/data
+            Filesystem      Size  Used Avail Use% Mounted on
+            /dev/sdb1        11G  2.1M   11G   1% /mnt/dat
+# Автомонтирование при загрузке
+ sudo blkid /dev/sdb1
+/dev/sdb1: UUID="dcb3f28b-6ddc-425c-b133-a473b7c0c8ee" BLOCK_SIZE="4096" TYPE="ext4" PARTUUID="518b671c-01"
+    #добавить строку в конец файла /etc/fstab
+sudo nano /etc/fstab
+# строка
+UUID=dcb3f28b-6ddc-425c-b133-a473b7c0c8ee  /mnt/data  ext4  defaults  0  2
 
-```
-Физическая структура данных
-```sh
-###Теория7
-Табличные пространства 
-По умолчанию создаются два табличных пространства pg_default и pg_global
-Общие рекомендации
-    * часто используемые данные на быстрые носители, архив на медленные
-    * разнести индексы и таблицы по разным носителям
-    * выделить SSD для материальных представлений
-Таблицы из базы могут размещатся в табличных пространствах дефолтных и созданны, также есть деление на схемы
-Можно объекты перемещать между табличными пространствами.
+sudo mount -a монтируем всё, что перечислено в /etc/fstab, но ещё не примонтировано.
 
-Таблицы хранятся в файлах, размер каждого файла (сегмента) <= 1G
-Для каждой таблицы может существовать несколько слоёв
-    * Слой данных - содержит таблицы
-    * карта свободного пространства (free space map, fsm) файлы с отметками свободных областей, появляющихся после очистки
-    * карта видимости (visibility map, vm) файлы с отметкой страниц, на которых все версии строк видны во всех снимках
-00:49
-###Практика
-
+проверка
+df -h /mnt/data
 ```
 
-```sh
-```
+Формат сдачи
+
+hw02/report.md (шаги, команды, проблемы и решения);
+выдержки из конфигов до/после (путь data directory);
+выводы команд проверки: pg_lsclusters, запуск/статус кластера, select * from test;;
+
+Примерное время выполнения 90–150 минут.
 
 
-! [](file_name.png)
+Если возникнут вопросы, обращайтесь к студентам, преподавателям и наставникам в канал группы в VK.
 
 
+🙂 Удачи при выполнении!
 
 
+Критерии оценки:
+Задание считается принятым, если
+
+создан и примонтирован дополнительный диск с сохранением монтирования после перезагрузки;
+каталог данных PostgreSQL перенесён на новый диск с корректными правами; - найден и изменён параметр, указывающий на каталог данных;
+кластер успешно запускается после изменений;
+исходная таблица и данные доступны;
+приложены команды/фрагменты конфигурации и краткое объяснение причин сбоев и исправлений;
