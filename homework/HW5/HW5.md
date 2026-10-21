@@ -131,7 +131,7 @@ iso=# show transaction isolation level;
 
 
 ```
-![](Read committed.jpg)
+![](Readcommitted.jpg)
 
 ```sh
 #Окна 1 и 2
@@ -164,7 +164,7 @@ BEGIN;
 INSERT INTO orders(id, created_at, amount )  VALUES(27,now(), 6550.00);
 COMMIT;
 ```
-![](REPEATABLE READ.jpg)
+![](REPEATABLEREAD.jpg)
 # Repeatable Read транзакция видит данные в том состоянии, в котором они находились на момент первого запроса в этой транзакции
 
 
@@ -216,7 +216,7 @@ iso=#
 
 
 ```
-![](Read committed2.jpg)
+![](Readcommitted2.jpg)
 
 # При первом выполнении не понял смысл сделал по инструкции, переделал Read committed - после commit в первом окне, изменения видны в открытой сессии второго окна
 # Repeatable Read осле commit в первом окне, изменения не видны в открытой сессии второй
